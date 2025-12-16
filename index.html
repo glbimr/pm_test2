@@ -52,64 +52,99 @@
                 const interval = setInterval(() => {
                     attempts++;
                     if (tryInit() || attempts >= 30) {
-                        clearInterval(interval);
-                        if (!window.supabaseClient) {
-                            console.warn('⚠️ Supabase library not loaded. App will work in offline mode.');
-                        }
-                    }
-                }, 100);
-            }
-        })();
-    </script>
+                        return (
+                            <>
+                                {/* Desktop / Tablet view */}
+                                <div className="hidden md:flex fixed inset-0 z-70 bg-black/60 backdrop-blur-sm items-center justify-center p-6">
+                                    <div className="bg-slate-900 text-white rounded-2xl shadow-2xl w-full max-w-4xl p-6">
+                                        <div className="grid grid-cols-3 gap-6">
+                                            <div className="col-span-2 bg-black/20 rounded-xl flex items-center justify-center p-6">
+                                                <div className="text-center">
+                                                    <img src={targetUser?.avatar} alt="remote" className="w-48 h-48 rounded-full mx-auto mb-4 ring-4 ring-white/10" />
+                                                    <div className="text-2xl font-semibold">{targetUser?.name || 'Participant'}</div>
+                                                    <div className="text-sm text-white/70 mt-1">{isInCall ? `In call • ${formatElapsed(elapsed)}` : (isCalling ? 'Calling...' : '')}</div>
+                                                </div>
+                                            </div>
 
-    <style>
-        /* Custom Scrollbar for nicer UI */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #f1f5f9; 
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1; 
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8; 
-        }
-        body {
-            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-        }
-        /* Responsive helpers */
-        .responsive-sidebar { width: 16rem; }
-        .responsive-chat-left { width: 20rem; }
-        .kanban-column { min-width: 20rem; }
+                                            <div className="col-span-1 flex flex-col justify-between">
+                                                <div>
+                                                    <div className="text-sm text-white/70">Audio Devices</div>
+                                                    <div className="mt-3">
+                                                        <label className="block text-xs text-white/60">Microphone</label>
+                                                        <select value={selectedMicId} onChange={e => onChangeMic && onChangeMic(e.target.value)} className="w-full mt-2 p-2 rounded-lg bg-slate-800 border border-white/10">
+                                                            {microphones && microphones.length ? microphones.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || 'Microphone'}</option>) : <option>No microphones</option>}
+                                                        </select>
+                                                    </div>
+                                                    <div className="mt-3">
+                                                        <label className="block text-xs text-white/60">Speaker</label>
+                                                        <select value={selectedSpeakerId} onChange={e => onChangeSpeaker && onChangeSpeaker(e.target.value)} className="w-full mt-2 p-2 rounded-lg bg-slate-800 border border-white/10">
+                                                            {speakers && speakers.length ? speakers.map(s => <option key={s.deviceId} value={s.deviceId}>{s.label || 'Speaker'}</option>) : <option>No speakers</option>}
+                                                        </select>
+                                                    </div>
+                                                </div>
 
-        /* Bottom nav placeholder spacing for small screens */
-        .pb-safe { padding-bottom: 4rem; }
+                                                <div className="mt-4">
+                                                    <div className="flex flex-col items-center">
+                                                        <div className="flex items-center space-x-4 mt-2">
+                                                            <button onClick={() => onToggleMute && onToggleMute()} className="flex items-center flex-col p-3 rounded-full bg-white/6 hover:bg-white/10">
+                                                                <div className="text-xl">{muted ? '🔇' : '🎤'}</div>
+                                                                <div className="text-xs mt-1">{muted ? 'Unmute' : 'Mute'}</div>
+                                                            </button>
+                                                            <button onClick={() => {}} className="flex items-center flex-col p-3 rounded-full bg-white/6 hover:bg-white/10">
+                                                                <div className="text-xl">⚙️</div>
+                                                                <div className="text-xs mt-1">Settings</div>
+                                                            </button>
+                                                            <button onClick={() => onHangup && onHangup()} className="flex items-center flex-col p-4 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-lg">
+                                                                <div className="text-xl">📞</div>
+                                                                <div className="text-xs mt-1">End</div>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
 
-        @media (max-width: 1024px) {
-            /* iPad / small laptop */
-            .responsive-sidebar { width: 4.5rem !important; }
-            .responsive-chat-left { width: 5.5rem !important; }
-            .kanban-column { min-width: 16rem !important; }
-            main { padding: 1rem; }
-        }
+                                        <div className="mt-6 text-xs text-white/60">Tip: Use the dropdowns to change microphone or speaker during the call.</div>
 
-        /* Tablet / Nest Hub adjustments (roughly iPad / smart display sizes) */
-        @media (min-width: 641px) and (max-width: 1024px) {
-            .responsive-sidebar { width: 5.5rem !important; }
-            .responsive-chat-left { width: 18rem !important; }
-            .kanban-column { min-width: 14rem !important; }
-            /* Reduce tall fixed panels to fit viewport better */
-            .h-80 { height: auto !important; max-height: 50vh !important; }
-            .min-h-[400px] { min-height: 320px !important; }
-            header h1 { font-size: 1.25rem; }
-            main { padding: 1rem; }
-            .bottom-nav { display: none !important; }
-            .has-bottom-nav { padding-bottom: 1rem !important; }
-            .fixed.inset-0 > div, .fixed.inset-0 > .bg-white, .fixed.inset-0 > .bg-white.rounded-xl { max-width: 90% !important; width: 90% !important; height: auto !important; border-radius: 12px !important; }
+                                        <div className="mt-4">
+                                            <audio ref={audioRef} controls className="w-full bg-black rounded-md" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Mobile view */}
+                                <div className="md:hidden fixed inset-0 z-80 bg-gradient-to-b from-slate-900 to-slate-800 text-white flex flex-col items-center justify-between p-6">
+                                    <div className="w-full flex justify-end">
+                                        <button className="text-white/60" onClick={() => onHangup && onHangup()}>Close</button>
+                                    </div>
+
+                                    <div className="flex flex-col items-center">
+                                        <img src={targetUser?.avatar} alt="remote" className="w-36 h-36 rounded-full mb-4 ring-4 ring-white/10" />
+                                        <div className="text-xl font-semibold">{targetUser?.name || 'Participant'}</div>
+                                        <div className="text-sm text-white/70 mt-1">{isInCall ? `In call • ${formatElapsed(elapsed)}` : (isCalling ? 'Calling...' : '')}</div>
+                                    </div>
+
+                                    <div className="w-full">
+                                        <div className="flex items-center justify-around">
+                                            <button onClick={() => onToggleMute && onToggleMute()} className="flex flex-col items-center bg-white/6 p-3 rounded-full w-20 h-20">
+                                                <div className="text-2xl">{muted ? '🔇' : '🎤'}</div>
+                                                <div className="text-xs mt-1">{muted ? 'Unmute' : 'Mute'}</div>
+                                            </button>
+                                            <button onClick={() => toggleSpeaker && toggleSpeaker()} className="flex flex-col items-center bg-white/6 p-3 rounded-full w-20 h-20">
+                                                <div className="text-2xl">🔊</div>
+                                                <div className="text-xs mt-1">Speaker</div>
+                                            </button>
+                                            <button onClick={() => onHangup && onHangup()} className="flex flex-col items-center bg-rose-600 text-white p-3 rounded-full w-20 h-20">
+                                                <div className="text-2xl">📞</div>
+                                                <div className="text-xs mt-1">End</div>
+                                            </button>
+                                        </div>
+                                        <div className="mt-4">
+                                            <audio ref={audioRef} controls className="w-full bg-black rounded-md" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
         }
 
         @media (max-width: 640px) {
@@ -1053,32 +1088,57 @@
         function IncomingCallModal({ callData, onAccept, onDecline }) {
             if (!callData) return null;
             return (
-                <div className="fixed inset-0 z-80 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onDecline}>
-                    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl p-6 text-white" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center space-x-6">
-                            <img src={allUsers && allUsers.find(u => u.id === callData.from)?.avatar} alt="caller" className="w-24 h-24 rounded-full ring-4 ring-white/20 bg-slate-800" />
-                            <div className="flex-1">
-                                <div className="text-2xl font-bold">{callData.fromName || 'Unknown'}</div>
-                                <div className="text-sm text-white/70 mt-1">is calling you</div>
-                                <div className="mt-3 text-xs text-white/60">Incoming audio call • Click Accept to join with your microphone enabled</div>
+                <>
+                    {/* Desktop / tablet incoming call overlay */}
+                    <div className="hidden md:flex fixed inset-0 z-80 items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onDecline}>
+                        <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl p-6 text-white" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center space-x-6">
+                                <img src={allUsers && allUsers.find(u => u.id === callData.from)?.avatar} alt="caller" className="w-24 h-24 rounded-full ring-4 ring-white/20 bg-slate-800" />
+                                <div className="flex-1">
+                                    <div className="text-2xl font-bold">{callData.fromName || 'Unknown'}</div>
+                                    <div className="text-sm text-white/70 mt-1">is calling you</div>
+                                    <div className="mt-3 text-xs text-white/60">Incoming audio call • Click Accept to join with your microphone enabled</div>
+                                </div>
+                                <div className="ml-4 text-right">
+                                    <div className="text-xs text-white/60">From</div>
+                                    <div className="text-sm font-medium">{callData.from}</div>
+                                </div>
                             </div>
-                            <div className="ml-4 text-right">
-                                <div className="text-xs text-white/60">From</div>
-                                <div className="text-sm font-medium">{callData.from}</div>
-                            </div>
-                        </div>
 
-                        <div className="mt-6 flex items-center justify-center space-x-6">
-                            <button onClick={onDecline} className="flex items-center space-x-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full border border-white/10">
-                                <span className="text-lg">Decline</span>
-                            </button>
-                            <button onClick={onAccept} className="flex items-center space-x-3 px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full text-lg shadow-lg">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 7.2a2 2 0 0 0-1.2-2.1l-3.8-1.6a2 2 0 0 0-2.3.5L9 8"/></svg>
-                                <span>Accept</span>
-                            </button>
+                            <div className="mt-6 flex items-center justify-center space-x-6">
+                                <button onClick={onDecline} className="flex items-center space-x-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full border border-white/10">
+                                    <span className="text-lg">Decline</span>
+                                </button>
+                                <button onClick={onAccept} className="flex items-center space-x-3 px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full text-lg shadow-lg">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 7.2a2 2 0 0 0-1.2-2.1l-3.8-1.6a2 2 0 0 0-2.3.5L9 8"/></svg>
+                                    <span>Accept</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
+
+                    {/* Mobile incoming call full-screen */}
+                    <div className="md:hidden fixed inset-0 z-90 flex flex-col items-center justify-between bg-gradient-to-b from-slate-900 to-slate-800 text-white p-6" onClick={onDecline}>
+                        <div className="w-full flex justify-end">
+                            <button onClick={onDecline} className="text-white/60">✕</button>
+                        </div>
+                        <div className="flex flex-col items-center mt-6">
+                            <img src={allUsers && allUsers.find(u => u.id === callData.from)?.avatar} alt="caller" className="w-28 h-28 rounded-full ring-4 ring-white/20 bg-slate-800 mb-4" />
+                            <div className="text-2xl font-semibold">{callData.fromName || 'Unknown'}</div>
+                            <div className="text-sm text-white/70 mt-1">is calling</div>
+                        </div>
+                        <div className="w-full mb-8">
+                            <div className="flex items-center justify-around">
+                                <button onClick={onDecline} className="flex flex-col items-center bg-white/8 hover:bg-white/12 text-white rounded-full w-28 h-28 justify-center">
+                                    <div className="text-xl">Decline</div>
+                                </button>
+                                <button onClick={onAccept} className="flex flex-col items-center bg-emerald-500 hover:bg-emerald-600 text-white rounded-full w-28 h-28 justify-center shadow-lg">
+                                    <div className="text-xl">Accept</div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </>
             );
         }
 
@@ -3099,6 +3159,23 @@
                     setMuted(newMuted);
                 } catch (e) {
                     console.warn('Failed to toggle mute', e);
+                }
+            };
+
+            const toggleSpeaker = async () => {
+                try {
+                    if (!audioRef || !audioRef.current) return;
+                    // If setSinkId supported, toggle between default and selectedSpeakerId
+                    if (typeof audioRef.current.setSinkId === 'function') {
+                        const target = selectedSpeakerId || 'default';
+                        await audioRef.current.setSinkId(target);
+                        setSelectedSpeakerId(target === 'default' ? '' : target);
+                    } else {
+                        console.warn('setSinkId not supported, cannot toggle speaker');
+                        alert('Speaker switching is not supported by this browser.');
+                    }
+                } catch (e) {
+                    console.warn('Failed to toggle speaker', e);
                 }
             };
 
