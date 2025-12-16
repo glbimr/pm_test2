@@ -1049,72 +1049,32 @@
             );
         }
 
-        // Incoming call modal (styled)
+        // Incoming call modal
         function IncomingCallModal({ callData, onAccept, onDecline }) {
-            useEffect(() => {
-                // Try to play a short ringtone via WebAudio (best-effort). May be blocked.
-                let ctx, osc, gain;
-                try {
-                    ctx = new (window.AudioContext || window.webkitAudioContext)();
-                    osc = ctx.createOscillator();
-                    gain = ctx.createGain();
-                    osc.type = 'sine';
-                    osc.frequency.value = 660;
-                    gain.gain.value = 0.0001; // start almost silent
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.start();
-                    // ramp up briefly to make a soft ring pattern
-                    let on = true;
-                    const interval = setInterval(() => {
-                        gain.gain.cancelScheduledValues(ctx.currentTime);
-                        if (on) {
-                            gain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.05);
-                        } else {
-                            gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
-                        }
-                        on = !on;
-                    }, 650);
-                    // stop when callData removed
-                    return () => {
-                        clearInterval(interval);
-                        try { osc.stop(); } catch(e){}
-                        try { ctx.close(); } catch(e){}
-                    };
-                } catch (e) {
-                    return undefined;
-                }
-            }, [callData]);
-
             if (!callData) return null;
-
             return (
-                <div className="fixed inset-0 z-60 bg-gradient-to-br from-black/50 to-black/30 flex items-center justify-center p-4" onClick={onDecline}>
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 transform transition-transform scale-100 hover:scale-[1.01]" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center space-x-4">
-                            <div className="relative">
-                                <img src={(callData && callData.fromAvatar) || 'https://api.dicebear.com/7.x/avataaars/svg?seed=caller'} alt="caller" className="w-20 h-20 rounded-full object-cover shadow" />
-                                <span className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-emerald-400 ring-2 ring-white" title="Ringing" />
-                            </div>
+                <div className="fixed inset-0 z-80 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onDecline}>
+                    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl p-6 text-white" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center space-x-6">
+                            <img src={allUsers && allUsers.find(u => u.id === callData.from)?.avatar} alt="caller" className="w-24 h-24 rounded-full ring-4 ring-white/20 bg-slate-800" />
                             <div className="flex-1">
-                                <div className="text-lg font-semibold">{callData.fromName || 'Unknown Caller'}</div>
-                                <div className="text-sm text-slate-500">Incoming voice call</div>
-                                <div className="mt-3 flex items-center space-x-2">
-                                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                                    <div className="text-xs text-slate-400">Ringing</div>
-                                </div>
+                                <div className="text-2xl font-bold">{callData.fromName || 'Unknown'}</div>
+                                <div className="text-sm text-white/70 mt-1">is calling you</div>
+                                <div className="mt-3 text-xs text-white/60">Incoming audio call • Click Accept to join with your microphone enabled</div>
+                            </div>
+                            <div className="ml-4 text-right">
+                                <div className="text-xs text-white/60">From</div>
+                                <div className="text-sm font-medium">{callData.from}</div>
                             </div>
                         </div>
 
-                        <div className="mt-6 flex items-center justify-between">
-                            <button onClick={onDecline} className="w-1/2 mr-2 flex items-center justify-center space-x-2 px-4 py-3 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 14L14 10"/><path d="M14 14L10 10"/></svg>
-                                <span className="font-medium">Decline</span>
+                        <div className="mt-6 flex items-center justify-center space-x-6">
+                            <button onClick={onDecline} className="flex items-center space-x-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full border border-white/10">
+                                <span className="text-lg">Decline</span>
                             </button>
-
-                            <button onClick={onAccept} className="w-1/2 ml-2 flex items-center justify-center space-x-2 px-4 py-3 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
-                                <span className="font-medium">Accept</span>
+                            <button onClick={onAccept} className="flex items-center space-x-3 px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full text-lg shadow-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 7.2a2 2 0 0 0-1.2-2.1l-3.8-1.6a2 2 0 0 0-2.3.5L9 8"/></svg>
+                                <span>Accept</span>
                             </button>
                         </div>
                     </div>
@@ -1127,7 +1087,6 @@
             const [elapsed, setElapsed] = useState(0);
             useEffect(() => {
                 if (!audioRef || !audioRef.current) return;
-                // prefer using srcObject when remote stream is available
                 try {
                     if (remoteStreamRef && remoteStreamRef.current && 'srcObject' in audioRef.current) {
                         audioRef.current.srcObject = remoteStreamRef.current;
@@ -1157,51 +1116,67 @@
             if (!isCalling && !isInCall) return null;
 
             const formatElapsed = (s) => {
-                const mm = String(Math.floor(s / 60)).padStart(2, '0');
+                const hh = String(Math.floor(s / 3600)).padStart(2, '0');
+                const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
                 const ss = String(s % 60).padStart(2, '0');
-                return `${mm}:${ss}`;
+                return hh > 0 ? `${hh}:${mm}:${ss}` : `${mm}:${ss}`;
             };
 
             return (
-                <div className="fixed inset-0 z-70 bg-gradient-to-br from-black/40 to-black/20 flex items-center justify-center p-4">
-                    <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl w-full max-w-2xl p-6" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between mb-6">
-                            <div className="flex items-center space-x-4">
-                                <div className="relative">
-                                    <img src={targetUser?.avatar} alt="avatar" className="w-20 h-20 rounded-full object-cover shadow" />
-                                    <span className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-emerald-400 ring-2 ring-white" />
+                <div className="fixed inset-0 z-70 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6">
+                    <div className="bg-slate-900 text-white rounded-2xl shadow-2xl w-full max-w-4xl p-6">
+                        <div className="grid grid-cols-3 gap-6">
+                            <div className="col-span-2 bg-black/20 rounded-xl flex items-center justify-center p-6">
+                                <div className="text-center">
+                                    <img src={targetUser?.avatar} alt="remote" className="w-48 h-48 rounded-full mx-auto mb-4 ring-4 ring-white/10" />
+                                    <div className="text-2xl font-semibold">{targetUser?.name || 'Participant'}</div>
+                                    <div className="text-sm text-white/70 mt-1">{isInCall ? `In call • ${formatElapsed(elapsed)}` : (isCalling ? 'Calling...' : '')}</div>
                                 </div>
+                            </div>
+
+                            <div className="col-span-1 flex flex-col justify-between">
                                 <div>
-                                    <div className="text-2xl font-semibold">{targetUser?.name || 'Calling...'}</div>
-                                    <div className="text-sm text-slate-500 mt-1">{isInCall ? `In call • ${formatElapsed(elapsed)}` : (isCalling ? 'Calling...' : 'Connecting...')}</div>
+                                    <div className="text-sm text-white/70">Audio Devices</div>
+                                    <div className="mt-3">
+                                        <label className="block text-xs text-white/60">Microphone</label>
+                                        <select value={selectedMicId} onChange={e => onChangeMic && onChangeMic(e.target.value)} className="w-full mt-2 p-2 rounded-lg bg-slate-800 border border-white/10">
+                                            {microphones && microphones.length ? microphones.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || 'Microphone'}</option>) : <option>No microphones</option>}
+                                        </select>
+                                    </div>
+                                    <div className="mt-3">
+                                        <label className="block text-xs text-white/60">Speaker</label>
+                                        <select value={selectedSpeakerId} onChange={e => onChangeSpeaker && onChangeSpeaker(e.target.value)} className="w-full mt-2 p-2 rounded-lg bg-slate-800 border border-white/10">
+                                            {speakers && speakers.length ? speakers.map(s => <option key={s.deviceId} value={s.deviceId}>{s.label || 'Speaker'}</option>) : <option>No speakers</option>}
+                                        </select>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="flex items-center space-x-3">
-                                <div className="text-xs text-slate-400">Device</div>
-                                <div className="flex items-center space-x-2">
-                                    <select value={selectedMicId} onChange={e => onChangeMic && onChangeMic(e.target.value)} className="p-2 border rounded-lg text-sm">
-                                        {microphones && microphones.length ? microphones.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || 'Microphone'}</option>) : <option>No mics</option>}
-                                    </select>
-                                    <select value={selectedSpeakerId} onChange={e => onChangeSpeaker && onChangeSpeaker(e.target.value)} className="p-2 border rounded-lg text-sm">
-                                        {speakers && speakers.length ? speakers.map(s => <option key={s.deviceId} value={s.deviceId}>{s.label || 'Speaker'}</option>) : <option>No speakers</option>}
-                                    </select>
+
+                                <div className="mt-4">
+                                    <div className="flex flex-col items-center">
+                                        <div className="flex items-center space-x-4 mt-2">
+                                            <button onClick={() => onToggleMute && onToggleMute()} className="flex items-center flex-col p-3 rounded-full bg-white/6 hover:bg-white/10">
+                                                <div className="text-xl">{muted ? '🔇' : '🎤'}</div>
+                                                <div className="text-xs mt-1">{muted ? 'Unmute' : 'Mute'}</div>
+                                            </button>
+                                            <button onClick={() => {}} className="flex items-center flex-col p-3 rounded-full bg-white/6 hover:bg-white/10">
+                                                <div className="text-xl">⚙️</div>
+                                                <div className="text-xs mt-1">Settings</div>
+                                            </button>
+                                            <button onClick={() => onHangup && onHangup()} className="flex items-center flex-col p-4 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-lg">
+                                                <div className="text-xl">📞</div>
+                                                <div className="text-xs mt-1">End</div>
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-4 items-end">
-                            <div className="col-span-2">
-                                <div className="mb-2 text-sm text-slate-500">Live audio</div>
-                                <audio ref={audioRef} controls className="w-full rounded-lg border" />
-                            </div>
+                        <div className="mt-6 text-xs text-white/60">Tip: Use the dropdowns to change microphone or speaker during the call.</div>
 
-                            <div className="flex flex-col items-center space-y-3">
-                                <button onClick={() => { onToggleMute && onToggleMute(); }} className={`w-20 h-20 rounded-full flex items-center justify-center text-lg font-semibold ${muted ? 'bg-slate-200 text-slate-700' : 'bg-indigo-600 text-white'} shadow-lg`}> {muted ? 'Unmute' : 'Mute'}</button>
-                                <button onClick={() => { onHangup && onHangup(); }} className="w-20 h-12 rounded-lg bg-rose-600 text-white font-semibold shadow">End</button>
-                            </div>
+                        <div className="hidden">
+                            <audio ref={audioRef} controls className="w-full" />
                         </div>
-
-                        <div className="mt-4 text-xs text-slate-500">Tip: Use the device selectors to change microphone or speaker during the call.</div>
                     </div>
                 </div>
             );
