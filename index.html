@@ -142,6 +142,58 @@
             /* Add safe padding so main content is not hidden behind bottom nav */
             .has-bottom-nav { padding-bottom: 4.5rem !important; }
         }
+        /* Chat responsiveness helpers: ensure the chat module fills the viewport,
+           allows the message list to scroll correctly, and keeps the input area
+           visible (sticky) above mobile keyboards / bottom navs. */
+        html, body, #root {
+            height: 100%;
+        }
+
+        /* Make the chat container fill available viewport space */
+        .chat-view-full {
+            height: calc(100vh - 2rem);
+            max-height: 100vh;
+            display: flex;
+        }
+
+        /* Ensure left column scrolls independently */
+        .chat-view-full > .responsive-chat-left {
+            height: 100%;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Fix nested flex overflow so children can shrink properly */
+        .chat-view-full .flex-1.flex.flex-col {
+            display: flex;
+            flex-direction: column;
+            min-height: 0; /* allow children to shrink and overflow to work */
+        }
+
+        /* Make messages area grow and scroll inside the chat column */
+        .chat-view-full .flex-1.p-6 {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Keep the message input area visible at the bottom */
+        .chat-view-full .p-4.border-t {
+            position: sticky;
+            bottom: 0;
+            z-index: 20;
+            background: inherit;
+            backdrop-filter: blur(6px);
+        }
+
+        @media (max-width: 640px) {
+            .chat-view-full { height: 100vh; }
+            .chat-view-full .p-4.border-t { padding-bottom: env(safe-area-inset-bottom, 12px); }
+            .chat-view-full .flex-1.p-6 { padding-bottom: 1rem; }
+            /* Ensure full-width left list when showing on mobile */
+            .show-on-mobile.responsive-chat-left { display:block !important; width:100% !important; }
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
