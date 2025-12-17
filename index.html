@@ -1083,7 +1083,7 @@
         }
 
         // In-call UI (visible during call)
-        function CallModal({ isCalling, isInCall, targetUser, onHangup, onToggleMute, muted, audioRef, remoteStreamRef, remoteAudioUrl, microphones, speakers, selectedMicId, selectedSpeakerId, onChangeMic, onChangeSpeaker, callStartTime }) {
+        function CallModal({ isCalling, isInCall, isRinging, incomingCall, onAccept, onDecline, targetUser, onHangup, onToggleMute, muted, audioRef, remoteStreamRef, remoteAudioUrl, microphones, speakers, selectedMicId, selectedSpeakerId, onChangeMic, onChangeSpeaker, callStartTime }) {
             const [elapsed, setElapsed] = useState(0);
             useEffect(() => {
                 if (!audioRef || !audioRef.current) return;
@@ -1113,7 +1113,34 @@
                 return () => clearInterval(timer);
             }, [callStartTime]);
 
-            if (!isCalling && !isInCall) return null;
+            if (!isCalling && !isInCall && !isRinging) return null;
+
+            // Swipe state for accept/decline
+            const [dragX, setDragX] = useState(0);
+            const draggingRef = useRef(false);
+            const startXRef = useRef(0);
+
+            const onTouchStart = (e) => {
+                draggingRef.current = true;
+                startXRef.current = e.touches ? e.touches[0].clientX : e.clientX;
+            };
+            const onTouchMove = (e) => {
+                if (!draggingRef.current) return;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                setDragX(clientX - startXRef.current);
+            };
+            const onTouchEnd = () => {
+                draggingRef.current = false;
+                const threshold = 100; // px
+                if (dragX > threshold) {
+                    // accept
+                    onAccept && onAccept();
+                } else if (dragX < -threshold) {
+                    // decline
+                    onDecline && onDecline();
+                }
+                setDragX(0);
+            };
 
             const formatElapsed = (s) => {
                 const hh = String(Math.floor(s / 3600)).padStart(2, '0');
@@ -1127,10 +1154,40 @@
                     <div className="bg-slate-900 text-white rounded-2xl shadow-2xl w-full max-w-4xl p-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="col-span-1 md:col-span-2 bg-black/20 rounded-xl flex items-center justify-center p-6">
-                                <div className="text-center">
-                                    <img src={targetUser?.avatar} alt="remote" className="w-36 h-36 md:w-48 md:h-48 rounded-full mx-auto mb-4 ring-4 ring-white/10" />
-                                    <div className="text-xl md:text-2xl font-semibold">{targetUser?.name || 'Participant'}</div>
-                                    <div className="text-sm text-white/70 mt-1">{isInCall ? `In call • ${formatElapsed(elapsed)}` : (isCalling ? 'Calling...' : '')}</div>
+                                <div className="text-center w-full">
+                                    {/* If ringing (incoming) show swipe accept/decline control */}
+                                    {(isRinging || (isCalling && !isInCall)) ? (
+                                        <div className="flex flex-col items-center gap-4">
+                                            <img src={(incomingCall && allUsers.find(u=>u.id===incomingCall.from)) ? allUsers.find(u=>u.id===incomingCall.from).avatar : targetUser?.avatar} alt="remote" className="w-36 h-36 md:w-48 md:h-48 rounded-full mx-auto mb-2 ring-4 ring-white/10" />
+                                            <div className="text-xl md:text-2xl font-semibold">{(incomingCall && incomingCall.fromName) || targetUser?.name || 'Participant'}</div>
+                                            <div className="text-sm text-white/70">{isInCall ? `In call • ${formatElapsed(elapsed)}` : (isCalling ? 'Ringing...' : 'Incoming call')}</div>
+
+                                            <div className="w-full max-w-md mt-4">
+                                                <div className="relative h-14 bg-white/6 rounded-full overflow-hidden">
+                                                    <div className="absolute inset-0 flex items-center justify-between px-4 text-xs text-white/60">
+                                                        <div>Swipe left to decline</div>
+                                                        <div>Swipe right to accept</div>
+                                                    </div>
+                                                    <div
+                                                        onTouchStart={onTouchStart}
+                                                        onTouchMove={onTouchMove}
+                                                        onTouchEnd={onTouchEnd}
+                                                        onMouseDown={(e)=>{ onTouchStart(e); window.addEventListener('mousemove', onTouchMove); window.addEventListener('mouseup', ()=>{ onTouchEnd(); window.removeEventListener('mousemove', onTouchMove); }); }}
+                                                        className="absolute top-1 left-1 h-12 w-12 bg-emerald-500 rounded-full shadow-md flex items-center justify-center text-white cursor-grab"
+                                                        style={{ transform: `translateX(${dragX}px)` }}
+                                                    >
+                                                        ▶
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <img src={targetUser?.avatar} alt="remote" className="w-36 h-36 md:w-48 md:h-48 rounded-full mx-auto mb-4 ring-4 ring-white/10" />
+                                            <div className="text-xl md:text-2xl font-semibold">{targetUser?.name || 'Participant'}</div>
+                                            <div className="text-sm text-white/70 mt-1">{isInCall ? `In call • ${formatElapsed(elapsed)}` : (isCalling ? 'Calling...' : '')}</div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -4023,20 +4080,17 @@
                         />
                     )}
 
-                    {/* Incoming call UI */}
-                    {incomingCall && (
-                        <IncomingCallModal
-                            callData={incomingCall}
-                            onAccept={acceptIncomingCall}
-                            onDecline={declineIncomingCall}
-                        />
-                    )}
+                    {/* Incoming call UI handled inside CallModal (unified caller/receiver UI) */}
 
                     {/* Call UI / Remote audio element */}
                     <CallModal
                         isCalling={isCalling}
                         isInCall={isInCall}
-                        targetUser={allUsers.find(u => u.id === callTargetId)}
+                        isRinging={!!incomingCall && !isInCall}
+                        incomingCall={incomingCall}
+                        onAccept={acceptIncomingCall}
+                        onDecline={declineIncomingCall}
+                        targetUser={allUsers.find(u => u.id === callTargetId) || (incomingCall ? allUsers.find(u => u.id === incomingCall.from) : null)}
                         onHangup={endCallLocal}
                         onToggleMute={toggleMute}
                         muted={muted}
