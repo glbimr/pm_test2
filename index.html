@@ -480,6 +480,41 @@
                                 </button>
                             </div>
 
+                            /* WhatsApp-like Call UI styles */
+                            .wa-call-screen {
+                                position: fixed;
+                                inset: 0;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                background: linear-gradient(180deg, rgba(15,23,42,0.6), rgba(2,6,23,0.6));
+                                z-index: 80;
+                            }
+                            .wa-call-card {
+                                width: 92%;
+                                max-width: 420px;
+                                background: transparent;
+                                color: white;
+                                text-align: center;
+                                padding: 2rem 1rem 1.5rem;
+                            }
+                            .wa-avatar {
+                                width: 140px;
+                                height: 140px;
+                                border-radius: 9999px;
+                                border: 4px solid rgba(255,255,255,0.12);
+                                margin: 0 auto 1rem;
+                                object-fit: cover;
+                                background: #111827;
+                            }
+                            .wa-name { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.25rem; }
+                            .wa-sub { font-size: 0.9rem; color: rgba(255,255,255,0.8); margin-bottom: 1rem; }
+                            .wa-controls { display:flex; justify-content:center; gap:18px; margin-top:1.25rem; }
+                            .wa-control { width:58px; height:58px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.08); }
+                            .wa-control.end { background:#ef4444; color:white; box-shadow:0 8px 20px rgba(239,68,68,0.25); }
+                            .wa-control.muted { background:rgba(255,255,255,0.06); }
+                            .wa-timer { font-size:0.9rem; color:rgba(255,255,255,0.85); margin-top:0.5rem; }
+
                             {chatType === 'channel' && (
                                 <div className="space-y-4">
                                     <div>
@@ -529,7 +564,7 @@
             );
         }
 
-        function ChatView({ currentUser, users, chats, messages, activeChatId, setActiveChatId, onSendMessage, onCreateChat, onDeleteChat, onStartCall }) {
+        function ChatView({ currentUser, users, chats, messages, activeChatId, setActiveChatId, onSendMessage, onCreateChat, onDeleteChat }) {
             const [isChatModalOpen, setIsChatModalOpen] = useState(false);
             const [searchTerm, setSearchTerm] = useState('');
             const [newMessage, setNewMessage] = useState('');
@@ -844,20 +879,7 @@
                                     <h3 className="text-lg font-semibold text-slate-800">
                                         {getChatDisplayName(activeChat)}
                                     </h3>
-                                <div className="ml-3">
-                                    <button
-                                        onClick={() => {
-                                            if (!activeChat) return;
-                                            const other = activeChat.members.find(id => id !== currentUser.id);
-                                            if (!other) return alert('Cannot call a channel. Start a DM to call a user.');
-                                            if (typeof onStartCall === 'function') onStartCall(other);
-                                        }}
-                                        className="ml-2 p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700"
-                                        title="Call user"
-                                    >
-                                        📞
-                                    </button>
-                                </div>
+                                {/* Call button moved to dedicated Calls module */}
                                     <span className="text-sm text-slate-400 ml-2">({activeChat.members.length} members)</span>
                                 </div>
 
@@ -1164,6 +1186,93 @@
 
                         <div className="text-xs text-slate-500">Microphone access is required. Allow the browser prompt if shown.</div>
                     </div>
+                </div>
+            );
+        }
+
+        /* New Calls module: list + WhatsApp-like call UI */
+        function CallsView({ currentUser, users, incomingCall, isCalling, isInCall, callTargetId, startCall, acceptIncomingCall, declineIncomingCall, endCallLocal, toggleMute, muted, audioRef, remoteAudioUrl, remoteStreamRef }) {
+            const [callTimer, setCallTimer] = useState(0);
+            const [timerInterval, setTimerInterval] = useState(null);
+
+            useEffect(() => {
+                if (isInCall) {
+                    setCallTimer(0);
+                    const t = setInterval(() => setCallTimer(s => s + 1), 1000);
+                    setTimerInterval(t);
+                    return () => clearInterval(t);
+                }
+                if (timerInterval) { clearInterval(timerInterval); setTimerInterval(null); }
+            }, [isInCall]);
+
+            const formatTimer = (s) => {
+                const mm = String(Math.floor(s/60)).padStart(2,'0');
+                const ss = String(s%60).padStart(2,'0');
+                return `${mm}:${ss}`;
+            };
+
+            const handleStart = (userId) => {
+                if (!userId) return;
+                startCall(userId);
+            };
+
+            const otherUser = users.find(u => u.id === callTargetId) || (incomingCall ? users.find(u => u.id === incomingCall.from) : null);
+
+            return (
+                <div className="bg-white rounded-xl shadow p-4 flex-1 flex flex-col">
+                    <h2 className="text-lg font-semibold mb-3">Calls</h2>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto" style={{maxHeight:'40vh'}}>
+                        {users.filter(u => u.id !== currentUser.id).map(u => (
+                            <div key={u.id} className="p-3 bg-slate-50 rounded-lg flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                    <img src={u.avatar} className="w-10 h-10 rounded-full" />
+                                    <div>
+                                        <div className="text-sm font-medium">{u.name}</div>
+                                        <div className="text-xs text-slate-400">{u.role}</div>
+                                    </div>
+                                </div>
+                                <button onClick={() => handleStart(u.id)} className="ml-2 p-2 rounded-full bg-indigo-600 text-white">Call</button>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* WhatsApp-like full-screen call UI overlay */}
+                    {(incomingCall || isCalling || isInCall) && (
+                        <div className="wa-call-screen" role="dialog" aria-label="Call screen">
+                            <div className="wa-call-card">
+                                <img src={otherUser?.avatar || currentUser.avatar} className="wa-avatar" alt={otherUser?.name || 'Caller'} />
+                                <div className="wa-name">{otherUser?.name || (incomingCall ? 'Unknown' : 'Calling...')}</div>
+                                <div className="wa-sub">{incomingCall ? 'Incoming audio call' : isInCall ? 'In call' : 'Calling...'}</div>
+                                {isInCall && <div className="wa-timer">{formatTimer(callTimer)}</div>}
+
+                                <div className="wa-controls">
+                                    {!isInCall && incomingCall && (
+                                        <>
+                                            <button onClick={acceptIncomingCall} className="wa-control bg-green-500 text-white" title="Accept">
+                                                ✓
+                                            </button>
+                                            <button onClick={declineIncomingCall} className="wa-control end" title="Decline">✕</button>
+                                        </>
+                                    )}
+
+                                    {!isInCall && !incomingCall && isCalling && (
+                                        <>
+                                            <button onClick={() => { endCallLocal(); }} className="wa-control end" title="Cancel Call">✕</button>
+                                        </>
+                                    )}
+
+                                    {isInCall && (
+                                        <>
+                                            <button onClick={toggleMute} className={`wa-control muted`} title="Mute/Unmute">{muted ? '🔇' : '🎙️'}</button>
+                                            <button onClick={() => { endCallLocal(); }} className="wa-control end" title="End Call">✕</button>
+                                        </>
+                                    )}
+                                </div>
+                                <audio ref={audioRef} style={{display:'none'}} />
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
@@ -3726,6 +3835,7 @@
                             <NavItem icon={<Icons.BarChart3 size={20} />} label="Dashboard" active={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} />
                             <NavItem icon={<Icons.Folder size={20} />} label="Projects" active={activeView === 'projects'} onClick={() => setActiveView('projects')} />
                             <NavItem icon={<Icons.MessageSquare size={20} />} label="Chat" active={activeView === 'chat'} onClick={() => setActiveView('chat')} />
+                            <NavItem icon={<Icons.Users size={20} />} label="Calls" active={activeView === 'calls'} onClick={() => setActiveView('calls')} />
                             {currentUser.role === 'Admin' && (
                                 <NavItem icon={<Icons.UserPlus size={20} />} label="User Management" active={activeView === 'users'} onClick={() => setActiveView('users')} />
                             )}
@@ -3789,7 +3899,25 @@
                                 onSendMessage={handleSendMessage}
                                 onCreateChat={handleCreateChat}
                                 onDeleteChat={handleDeleteChat}
-                                onStartCall={startCall}
+                            />
+                        )}
+                        {activeView === 'calls' && (
+                            <CallsView
+                                currentUser={currentUser}
+                                users={allUsers}
+                                incomingCall={incomingCall}
+                                isCalling={isCalling}
+                                isInCall={isInCall}
+                                callTargetId={callTargetId}
+                                startCall={startCall}
+                                acceptIncomingCall={acceptIncomingCall}
+                                declineIncomingCall={declineIncomingCall}
+                                endCallLocal={endCallLocal}
+                                toggleMute={toggleMute}
+                                muted={muted}
+                                audioRef={audioRef}
+                                remoteAudioUrl={remoteAudioUrl}
+                                remoteStreamRef={remoteStreamRef}
                             />
                         )}
                         
@@ -3973,3 +4101,4 @@
 </body>
 </html>
 </html>
+
