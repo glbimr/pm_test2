@@ -477,7 +477,85 @@
             );
         }
 
-        function ChatView({ currentUser, users, chats, messages, activeChatId, setActiveChatId, onSendMessage, onCreateChat, onDeleteChat, onStartCall, onStartTeamCall }) {
+        // --- Calls Module ---
+        function CallsView({ currentUser, users, onStartCall, isCalling, isInCall, callTargetId, onHangup, onToggleMute, muted }) {
+            const [filter, setFilter] = useState('');
+
+            const others = users.filter(u => u.id !== currentUser.id).filter(u => (u.name || '').toLowerCase().includes(filter.toLowerCase()) || (u.username || '').toLowerCase().includes(filter.toLowerCase()));
+
+            return (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 className="text-lg font-semibold text-slate-800">Calls</h3>
+                            <p className="text-sm text-slate-500">Call a teammate using real-time audio</p>
+                        </div>
+                        <div className="w-64">
+                            <input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Search people..." className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-500 outline-none" />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {others.map(u => {
+                            const busy = isInCall && callTargetId === u.id;
+                            return (
+                                <div key={u.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100 flex flex-col items-start">
+                                    <div className="flex items-center w-full justify-between">
+                                        <div className="flex items-center space-x-3">
+                                            <img src={u.avatar} className="w-12 h-12 rounded-full bg-white border" alt={u.name} />
+                                            <div>
+                                                <div className="font-medium text-slate-800">{u.name}</div>
+                                                <div className="text-xs text-slate-500">{u.role || u.username}</div>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            {busy ? <span className="text-xs text-emerald-700 bg-emerald-100 px-2 py-1 rounded">In Call</span> : <span className="text-xs text-slate-500">Available</span>}
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-3 w-full flex items-center justify-between">
+                                        <div className="text-xs text-slate-500">{u.username}</div>
+                                        <div className="flex items-center space-x-2">
+                                            <button onClick={() => onStartCall && onStartCall(u.id)} className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">Call</button>
+                                            {busy && (
+                                                <button onClick={() => onHangup && onHangup()} className="px-3 py-1 bg-rose-600 text-white rounded-lg text-sm hover:bg-rose-700">Hang Up</button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {others.length === 0 && (
+                            <div className="col-span-full text-center text-sm text-slate-500 p-6">No teammates found.</div>
+                        )}
+                    </div>
+
+                    <div className="mt-6">
+                        <div className="bg-white p-3 rounded-lg border border-slate-100">
+                            <div className="flex items-center justify-between">
+                                <div className="text-sm text-slate-700">Current Call</div>
+                                <div className="text-xs text-slate-500">{isInCall ? 'Connected' : isCalling ? 'Calling...' : 'Idle'}</div>
+                            </div>
+                            <div className="mt-3">
+                                <div className="flex items-center space-x-3">
+                                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">🎧</div>
+                                    <div>
+                                        <div className="font-medium text-slate-800">{(isInCall || isCalling) ? (users.find(u => u.id === callTargetId)?.name || '—') : 'No active call'}</div>
+                                        <div className="text-xs text-slate-500">{(isInCall || isCalling) ? (users.find(u => u.id === callTargetId)?.username || '') : ''}</div>
+                                    </div>
+                                    <div className="ml-auto flex items-center space-x-2">
+                                        <button onClick={() => onToggleMute && onToggleMute()} className="px-3 py-1 bg-slate-100 rounded-lg text-sm">{muted ? 'Unmute' : 'Mute'}</button>
+                                        <button onClick={() => onHangup && onHangup()} className="px-3 py-1 bg-rose-600 text-white rounded-lg text-sm">Hang Up</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function ChatView({ currentUser, users, chats, messages, activeChatId, setActiveChatId, onSendMessage, onCreateChat, onDeleteChat, onStartCall }) {
             const [isChatModalOpen, setIsChatModalOpen] = useState(false);
             const [searchTerm, setSearchTerm] = useState('');
             const [newMessage, setNewMessage] = useState('');
@@ -792,7 +870,7 @@
                                     <h3 className="text-lg font-semibold text-slate-800">
                                         {getChatDisplayName(activeChat)}
                                     </h3>
-                                <div className="ml-3 flex items-center space-x-2">
+                                <div className="ml-3">
                                     <button
                                         onClick={() => {
                                             if (!activeChat) return;
@@ -805,20 +883,6 @@
                                     >
                                         📞
                                     </button>
-                                    {activeChat.type === 'channel' && (
-                                        <button
-                                            onClick={() => {
-                                                if (!activeChat) return;
-                                                const members = Array.isArray(activeChat.members) ? activeChat.members.filter(id => id !== currentUser.id) : [];
-                                                if (members.length === 0) return alert('No other members to call.');
-                                                if (typeof onStartTeamCall === 'function') onStartTeamCall(members);
-                                            }}
-                                            className="ml-1 p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700"
-                                            title="Start Team Call"
-                                        >
-                                            📣
-                                        </button>
-                                    )}
                                 </div>
                                     <span className="text-sm text-slate-400 ml-2">({activeChat.members.length} members)</span>
                                 </div>
@@ -1125,40 +1189,6 @@
                         </div>
 
                         <div className="text-xs text-slate-500">Microphone access is required. Allow the browser prompt if shown.</div>
-                    </div>
-                </div>
-            );
-        }
-
-        // Team Call modal: shows simple participant list and hangup for group calls
-        function TeamCallModal({ isOpen, targets = [], users = [], onHangup, onToggleMute, muted }) {
-            if (!isOpen) return null;
-
-            const targetUsers = targets.map(tid => users.find(u => u.id === tid)).filter(Boolean);
-
-            return (
-                <div className="fixed inset-0 z-75 bg-black/30 flex items-center justify-center" onClick={() => {}}>
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-semibold">Team Call</h3>
-                            <div className="flex items-center space-x-2">
-                                <button onClick={() => { onToggleMute && onToggleMute(); }} className="px-3 py-2 bg-slate-100 rounded-lg">{muted ? 'Unmute' : 'Mute'}</button>
-                                <button onClick={() => { onHangup && onHangup(); }} className="px-3 py-2 bg-rose-600 text-white rounded-lg">End</button>
-                            </div>
-                        </div>
-                        <div className="mb-4">
-                            <p className="text-sm text-slate-500">Connected participants:</p>
-                            <div className="mt-3 grid grid-cols-3 gap-3">
-                                {targetUsers.map(u => (
-                                    <div key={u.id} className="flex flex-col items-center text-center p-2">
-                                        <img src={u.avatar} className="w-12 h-12 rounded-full mb-2" />
-                                        <div className="text-sm font-medium text-slate-700 truncate">{u.name}</div>
-                                        <div className="text-xs text-slate-400">{u.role}</div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="text-xs text-slate-500">Hint: Group calling uses the same signaling channel as 1:1 calls.</div>
                     </div>
                 </div>
             );
@@ -2545,7 +2575,6 @@
                 const [isCalling, setIsCalling] = useState(false);
                 const [isInCall, setIsInCall] = useState(false);
                 const pcRef = useRef(null);
-                const pcMapRef = useRef(new Map()); // store multiple PCs for group calls
                 const localStreamRef = useRef(null);
                 const remoteStreamRef = useRef(null);
                 const [remoteAudioUrl, setRemoteAudioUrl] = useState(null);
@@ -2553,8 +2582,6 @@
                 const [currentCallId, setCurrentCallId] = useState(null);
                 const audioRef = useRef(null);
                 const [muted, setMuted] = useState(false);
-                const [isGroupCall, setIsGroupCall] = useState(false);
-                const [groupCallTargets, setGroupCallTargets] = useState([]);
 
             // Restore session from localStorage on mount (before loading data)
             useEffect(() => {
@@ -2832,33 +2859,16 @@
                             // Offer received (for direct offer flow)
                             setIncomingCall({ from: data.from, fromName: data.fromName, offer: data.offer, callId: data.callId });
                         } else if (data.type === 'answer') {
-                            if (data.isGroup) {
-                                const pc = pcMapRef.current.get(data.from);
-                                if (pc) pc.setRemoteDescription(new RTCSessionDescription(data.answer)).catch(console.error);
-                            } else {
-                                if (pcRef.current) {
-                                    pcRef.current.setRemoteDescription(new RTCSessionDescription(data.answer)).catch(console.error);
-                                }
+                            if (pcRef.current) {
+                                pcRef.current.setRemoteDescription(new RTCSessionDescription(data.answer)).catch(console.error);
                             }
                         } else if (data.type === 'ice') {
-                            if (pcMapRef.current && data.isGroup) {
-                                const pc = pcMapRef.current.get(data.from);
-                                if (pc && data.candidate) pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(console.error);
-                            } else {
-                                if (pcRef.current && data.candidate) {
-                                    pcRef.current.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(console.error);
-                                }
+                            if (pcRef.current && data.candidate) {
+                                pcRef.current.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(console.error);
                             }
                         } else if (data.type === 'hangup') {
                             // remote hung up
-                            if (data.isGroup) {
-                                try {
-                                    const pc = pcMapRef.current.get(data.from);
-                                    if (pc) { pc.close(); pcMapRef.current.delete(data.from); }
-                                } catch (e) { console.warn('Error closing group pc for', data.from, e); }
-                            } else {
-                                endCallLocal();
-                            }
+                            endCallLocal();
                         }
                     } catch (e) {
                         console.error('Error handling signaling payload', e, payload);
@@ -2930,73 +2940,6 @@
                 return pc;
             };
 
-            // Start a group/team call by creating a separate PeerConnection per target
-            const startTeamCall = async (targetIds = []) => {
-                if (!supabase) return alert('Realtime (Supabase) is required for calls.');
-                if (!currentUser) return alert('You must be signed in to start a call.');
-
-                setIsCalling(true);
-                setIsGroupCall(true);
-                setGroupCallTargets(targetIds.slice());
-
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                    localStreamRef.current = stream;
-
-                    const callId = `gcall-${Date.now()}`;
-                    setCurrentCallId(callId);
-
-                    for (const targetId of targetIds) {
-                        // create a dedicated pc for each participant
-                        const pc = createPeerConnection(targetId);
-                        pcMapRef.current.set(targetId, pc);
-
-                        stream.getTracks().forEach(track => pc.addTrack(track, stream));
-
-                        const offer = await pc.createOffer();
-                        await pc.setLocalDescription(offer);
-
-                        // send targeted offer (isGroup flag lets receiver know it's a group call)
-                        await sendSignal({ type: 'offer', offer: offer, from: currentUser.id, fromName: currentUser.name, target: targetId, callId, isGroup: true });
-                    }
-
-                    setIsInCall(true);
-                } catch (e) {
-                    console.error('Start team call error', e);
-                    alert('Failed to start team call: ' + (e.message || e));
-                    // cleanup
-                    endGroupCall();
-                }
-            };
-
-            const endGroupCall = async () => {
-                try {
-                    // notify all targets
-                    if (groupCallTargets && groupCallTargets.length && currentUser) {
-                        for (const t of groupCallTargets) {
-                            try { await sendSignal({ type: 'hangup', from: currentUser.id, target: t, callId: currentCallId }); } catch(e){}
-                        }
-                    }
-
-                    // close and clear all peer connections
-                    for (const [tid, pc] of pcMapRef.current.entries()) {
-                        try { pc.close(); } catch(e){}
-                    }
-                    pcMapRef.current.clear();
-                    if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(t => t.stop()); localStreamRef.current = null; }
-                    if (remoteStreamRef.current) { try { remoteStreamRef.current.getTracks().forEach(t => t.stop()); } catch(e){} remoteStreamRef.current = null; }
-                    if (remoteAudioUrl) { try { URL.revokeObjectURL(remoteAudioUrl); } catch(e){} setRemoteAudioUrl(null); }
-                } catch (e) {
-                    console.warn('Error ending group call', e);
-                }
-                setGroupCallTargets([]);
-                setIsGroupCall(false);
-                setIsInCall(false);
-                setIsCalling(false);
-                setCallTargetId(null);
-                setCurrentCallId(null);
-            };
-
             const startCall = async (targetId) => {
                 if (!supabase) return alert('Realtime (Supabase) is required for calls.');
                 setIsCalling(true);
@@ -3024,40 +2967,25 @@
 
             const acceptIncomingCall = async () => {
                 if (!incomingCall) return;
-                const { from, offer, callId, isGroup } = incomingCall;
+                const { from, offer, callId } = incomingCall;
+                pcRef.current = createPeerConnection(from);
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
                     localStreamRef.current = stream;
+                    stream.getTracks().forEach(track => pcRef.current.addTrack(track, stream));
 
-                    if (isGroup) {
-                        // Create a dedicated PC for this caller and keep it in the map
-                        const pc = createPeerConnection(from);
-                        pcMapRef.current.set(from, pc);
-                        stream.getTracks().forEach(track => pc.addTrack(track, stream));
-                        await pc.setRemoteDescription(new RTCSessionDescription(offer));
-                        const answer = await pc.createAnswer();
-                        await pc.setLocalDescription(answer);
+                    await pcRef.current.setRemoteDescription(new RTCSessionDescription(offer));
+                    const answer = await pcRef.current.createAnswer();
+                    await pcRef.current.setLocalDescription(answer);
 
-                        setCallTargetId(from);
-                        setCurrentCallId(callId);
-                        await sendSignal({ type: 'answer', answer: answer, from: currentUser.id, fromName: currentUser.name, target: from, callId, isGroup: true });
-                    } else {
-                        pcRef.current = createPeerConnection(from);
-                        stream.getTracks().forEach(track => pcRef.current.addTrack(track, stream));
-                        await pcRef.current.setRemoteDescription(new RTCSessionDescription(offer));
-                        const answer = await pcRef.current.createAnswer();
-                        await pcRef.current.setLocalDescription(answer);
-
-                        setCallTargetId(from);
-                        setCurrentCallId(callId);
-                        await sendSignal({ type: 'answer', answer: answer, from: currentUser.id, fromName: currentUser.name, target: from, callId });
-                    }
-
+                    setCallTargetId(from);
+                    setCurrentCallId(callId);
+                    await sendSignal({ type: 'answer', answer: answer, from: currentUser.id, fromName: currentUser.name, target: from, callId });
                     setIsInCall(true);
                     setIncomingCall(null);
                 } catch (e) {
                     console.error('Accept call error', e);
-                    alert('Failed to accept call: ' + (e.message || e));
+                    alert('Failed to accept call: ' + e.message);
                     setIncomingCall(null);
                 }
             };
@@ -3070,10 +2998,6 @@
             };
 
             const endCallLocal = () => {
-                if (isGroupCall) {
-                    endGroupCall();
-                    return;
-                }
                 try {
                     // notify remote party
                     if (callTargetId) {
@@ -3828,6 +3752,7 @@
                             <NavItem icon={<Icons.BarChart3 size={20} />} label="Dashboard" active={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} />
                             <NavItem icon={<Icons.Folder size={20} />} label="Projects" active={activeView === 'projects'} onClick={() => setActiveView('projects')} />
                             <NavItem icon={<Icons.MessageSquare size={20} />} label="Chat" active={activeView === 'chat'} onClick={() => setActiveView('chat')} />
+                            <NavItem icon={<span style={{fontSize:18}}>📞</span>} label="Calls" active={activeView === 'calls'} onClick={() => setActiveView('calls')} />
                             {currentUser.role === 'Admin' && (
                                 <NavItem icon={<Icons.UserPlus size={20} />} label="User Management" active={activeView === 'users'} onClick={() => setActiveView('users')} />
                             )}
@@ -3856,6 +3781,7 @@
                                 {activeView === 'projects' && 'All Projects'}
                                 {activeView === 'users' && 'User Management'}
                                 {activeView === 'chat' && 'Internal Team Chat'}
+                                {activeView === 'calls' && 'Calls'}
                                 {activeView === 'board' && currentProject && `Kanban Board: ${currentProject.name}`}
                                 {activeView === 'board' && !currentProject && 'Kanban Board'}
                             </h1>
@@ -3892,7 +3818,19 @@
                                 onCreateChat={handleCreateChat}
                                 onDeleteChat={handleDeleteChat}
                                 onStartCall={startCall}
-                                onStartTeamCall={startTeamCall}
+                            />
+                        )}
+                        {activeView === 'calls' && (
+                            <CallsView
+                                currentUser={currentUser}
+                                users={allUsers}
+                                onStartCall={startCall}
+                                isCalling={isCalling}
+                                isInCall={isInCall}
+                                callTargetId={callTargetId}
+                                onHangup={endCallLocal}
+                                onToggleMute={toggleMute}
+                                muted={muted}
                             />
                         )}
                         
@@ -3944,6 +3882,10 @@
                         <button onClick={() => setActiveView('chat')} className={activeView === 'chat' ? 'active' : ''} title="Chat">
                             <Icons.MessageSquare size={20} />
                             <span>Chat</span>
+                        </button>
+                        <button onClick={() => setActiveView('calls')} className={activeView === 'calls' ? 'active' : ''} title="Calls">
+                            <span style={{fontSize:20}}>📞</span>
+                            <span>Calls</span>
                         </button>
                         {currentUser && currentUser.role === 'Admin' && (
                             <button onClick={() => setActiveView('users')} className={activeView === 'users' ? 'active' : ''} title="Users">
@@ -4058,14 +4000,6 @@
                         remoteStreamRef={remoteStreamRef}
                         remoteAudioUrl={remoteAudioUrl}
                     />
-                    <TeamCallModal
-                        isOpen={isGroupCall}
-                        targets={groupCallTargets}
-                        users={allUsers}
-                        onHangup={endGroupCall}
-                        onToggleMute={toggleMute}
-                        muted={muted}
-                    />
                     {isAvatarModalOpen && (
                         <AvatarModal
                             isOpen={isAvatarModalOpen}
@@ -4084,3 +4018,4 @@
 </body>
 </html>
 </html>
+
