@@ -480,41 +480,6 @@
                                 </button>
                             </div>
 
-                            /* WhatsApp-like Call UI styles */
-                            .wa-call-screen {
-                                position: fixed;
-                                inset: 0;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                background: linear-gradient(180deg, rgba(15,23,42,0.6), rgba(2,6,23,0.6));
-                                z-index: 80;
-                            }
-                            .wa-call-card {
-                                width: 92%;
-                                max-width: 420px;
-                                background: transparent;
-                                color: white;
-                                text-align: center;
-                                padding: 2rem 1rem 1.5rem;
-                            }
-                            .wa-avatar {
-                                width: 140px;
-                                height: 140px;
-                                border-radius: 9999px;
-                                border: 4px solid rgba(255,255,255,0.12);
-                                margin: 0 auto 1rem;
-                                object-fit: cover;
-                                background: #111827;
-                            }
-                            .wa-name { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.25rem; }
-                            .wa-sub { font-size: 0.9rem; color: rgba(255,255,255,0.8); margin-bottom: 1rem; }
-                            .wa-controls { display:flex; justify-content:center; gap:18px; margin-top:1.25rem; }
-                            .wa-control { width:58px; height:58px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.08); }
-                            .wa-control.end { background:#ef4444; color:white; box-shadow:0 8px 20px rgba(239,68,68,0.25); }
-                            .wa-control.muted { background:rgba(255,255,255,0.06); }
-                            .wa-timer { font-size:0.9rem; color:rgba(255,255,255,0.85); margin-top:0.5rem; }
-
                             {chatType === 'channel' && (
                                 <div className="space-y-4">
                                     <div>
@@ -564,7 +529,7 @@
             );
         }
 
-        function ChatView({ currentUser, users, chats, messages, activeChatId, setActiveChatId, onSendMessage, onCreateChat, onDeleteChat }) {
+        function ChatView({ currentUser, users, chats, messages, activeChatId, setActiveChatId, onSendMessage, onCreateChat, onDeleteChat, onStartCall }) {
             const [isChatModalOpen, setIsChatModalOpen] = useState(false);
             const [searchTerm, setSearchTerm] = useState('');
             const [newMessage, setNewMessage] = useState('');
@@ -879,7 +844,7 @@
                                     <h3 className="text-lg font-semibold text-slate-800">
                                         {getChatDisplayName(activeChat)}
                                     </h3>
-                                {/* Call button moved to dedicated Calls module */}
+                                {/* Call button removed from chat header; use Calls module instead */}
                                     <span className="text-sm text-slate-400 ml-2">({activeChat.members.length} members)</span>
                                 </div>
 
@@ -972,6 +937,117 @@
                         />
                     )}
 
+                </div>
+            );
+        }
+
+        /* Calls module: WhatsApp-like UI for internal team voice calls */
+        function CallsView({ currentUser, users, callLogs, onStartCall, incomingCall, onAcceptIncoming, onDeclineIncoming, onEndCall, toggleMute, isCalling, isInCall, muted, audioRef, remoteAudioUrl }) {
+            const otherUsers = users.filter(u => u.id !== currentUser.id);
+            const [query, setQuery] = useState('');
+            const [selectedCallId, setSelectedCallId] = useState(null);
+
+            const start = (userId) => {
+                if (typeof onStartCall === 'function') onStartCall(userId);
+            };
+
+            const formatDuration = (ms) => {
+                if (!ms) return '';
+                const s = Math.floor(ms / 1000);
+                const m = Math.floor(s / 60);
+                const sec = s % 60;
+                return `${m}:${sec.toString().padStart(2,'0')}`;
+            };
+
+            const recent = (callLogs || []).slice(0, 50);
+
+            return (
+                <div className="flex h-full bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden chat-view-full">
+                    <div className="w-80 responsive-chat-left border-r border-slate-100 flex flex-col flex-shrink-0">
+                        <div className="p-4 flex items-center justify-between border-b border-slate-100">
+                            <h3 className="font-semibold text-slate-800">Calls</h3>
+                            <button className="text-sm text-slate-500">New</button>
+                        </div>
+                        <div className="p-3">
+                            <div className="relative">
+                                <Icons.Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
+                                <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search people or calls" className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 outline-none" />
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                            <div className="text-xs text-slate-500 uppercase px-3 mb-2">People</div>
+                            {otherUsers.filter(u => u.name.toLowerCase().includes(query.toLowerCase())).map(u => (
+                                <div key={u.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50">
+                                    <div className="flex items-center space-x-3">
+                                        <img src={u.avatar} className="w-10 h-10 rounded-full" />
+                                        <div>
+                                            <div className="text-sm font-medium">{u.name}</div>
+                                            <div className="text-xs text-slate-400">{u.role}</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <button onClick={() => start(u.id)} className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm">Call</button>
+                                    </div>
+                                </div>
+                            ))}
+
+                            <div className="mt-4 text-xs text-slate-500 uppercase px-3 mb-2">Recent</div>
+                            {recent.map(call => {
+                                const user = users.find(u => u.id === call.target) || {};
+                                return (
+                                    <div key={call.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50">
+                                        <div className="flex items-center space-x-3 min-w-0">
+                                            <img src={user.avatar || 'https://via.placeholder.com/40'} className="w-10 h-10 rounded-full flex-shrink-0" />
+                                            <div className="min-w-0">
+                                                <div className="text-sm font-medium truncate">{call.targetName || user.name || call.target}</div>
+                                                <div className="text-xs text-slate-400 truncate">{call.direction} • {call.status}{call.durationMs ? ` • ${formatDuration(call.durationMs)}` : ''}</div>
+                                            </div>
+                                        </div>
+                                        <div className="text-xs text-slate-400">{new Date(call.startedAt || call.createdAt || Date.now()).toLocaleString()}</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="flex-1 flex flex-col">
+                        <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-lg font-semibold text-slate-800">Calls</h3>
+                                <div className="text-sm text-slate-500">One-to-one voice calls for internal teams</div>
+                            </div>
+                            <div>
+                                {/* placeholder for status */}
+                                {isInCall ? <span className="text-sm text-emerald-600">In call</span> : isCalling ? <span className="text-sm text-amber-600">Calling...</span> : <span className="text-sm text-slate-400">Idle</span>}
+                            </div>
+                        </div>
+
+                        <div className="flex-1 p-6 overflow-y-auto">
+                            {isInCall || isCalling ? (
+                                <div className="max-w-md mx-auto text-center">
+                                    <div className="mb-4">
+                                        <img src={(users.find(u=>u.id=== (callLogs.find(l=>l.id===selectedCallId)?.target) )||{}).avatar || currentUser.avatar} className="w-28 h-28 rounded-full mx-auto" />
+                                    </div>
+                                    <div className="text-lg font-semibold mb-1">{(users.find(u=>u.id=== (callLogs.find(l=>l.id===selectedCallId)?.target) )||{}).name || 'Calling...'}</div>
+                                    <div className="text-sm text-slate-500 mb-4">{isInCall ? 'On the call' : 'Calling...'}</div>
+                                    <div className="flex items-center justify-center space-x-3">
+                                        <button onClick={() => toggleMute()} className={`px-4 py-2 rounded-lg ${muted ? 'bg-slate-100' : 'bg-indigo-600 text-white'}`}>{muted ? 'Unmute' : 'Mute'}</button>
+                                        <button onClick={() => onEndCall && onEndCall()} className="px-4 py-2 bg-rose-600 text-white rounded-lg">Hang Up</button>
+                                    </div>
+                                    <div className="mt-6">
+                                        <audio ref={audioRef} controls className="w-full" src={remoteAudioUrl || ''} />
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center text-slate-500">
+                                    <Icons.User size={48} className="mx-auto mb-4 text-slate-300" />
+                                    <div className="font-semibold">No active call</div>
+                                    <div className="text-sm mt-1">Select a user and press Call to start a secure internal voice call.</div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
             );
         }
@@ -1186,93 +1262,6 @@
 
                         <div className="text-xs text-slate-500">Microphone access is required. Allow the browser prompt if shown.</div>
                     </div>
-                </div>
-            );
-        }
-
-        /* New Calls module: list + WhatsApp-like call UI */
-        function CallsView({ currentUser, users, incomingCall, isCalling, isInCall, callTargetId, startCall, acceptIncomingCall, declineIncomingCall, endCallLocal, toggleMute, muted, audioRef, remoteAudioUrl, remoteStreamRef }) {
-            const [callTimer, setCallTimer] = useState(0);
-            const [timerInterval, setTimerInterval] = useState(null);
-
-            useEffect(() => {
-                if (isInCall) {
-                    setCallTimer(0);
-                    const t = setInterval(() => setCallTimer(s => s + 1), 1000);
-                    setTimerInterval(t);
-                    return () => clearInterval(t);
-                }
-                if (timerInterval) { clearInterval(timerInterval); setTimerInterval(null); }
-            }, [isInCall]);
-
-            const formatTimer = (s) => {
-                const mm = String(Math.floor(s/60)).padStart(2,'0');
-                const ss = String(s%60).padStart(2,'0');
-                return `${mm}:${ss}`;
-            };
-
-            const handleStart = (userId) => {
-                if (!userId) return;
-                startCall(userId);
-            };
-
-            const otherUser = users.find(u => u.id === callTargetId) || (incomingCall ? users.find(u => u.id === incomingCall.from) : null);
-
-            return (
-                <div className="bg-white rounded-xl shadow p-4 flex-1 flex flex-col">
-                    <h2 className="text-lg font-semibold mb-3">Calls</h2>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto" style={{maxHeight:'40vh'}}>
-                        {users.filter(u => u.id !== currentUser.id).map(u => (
-                            <div key={u.id} className="p-3 bg-slate-50 rounded-lg flex items-center justify-between">
-                                <div className="flex items-center space-x-3">
-                                    <img src={u.avatar} className="w-10 h-10 rounded-full" />
-                                    <div>
-                                        <div className="text-sm font-medium">{u.name}</div>
-                                        <div className="text-xs text-slate-400">{u.role}</div>
-                                    </div>
-                                </div>
-                                <button onClick={() => handleStart(u.id)} className="ml-2 p-2 rounded-full bg-indigo-600 text-white">Call</button>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* WhatsApp-like full-screen call UI overlay */}
-                    {(incomingCall || isCalling || isInCall) && (
-                        <div className="wa-call-screen" role="dialog" aria-label="Call screen">
-                            <div className="wa-call-card">
-                                <img src={otherUser?.avatar || currentUser.avatar} className="wa-avatar" alt={otherUser?.name || 'Caller'} />
-                                <div className="wa-name">{otherUser?.name || (incomingCall ? 'Unknown' : 'Calling...')}</div>
-                                <div className="wa-sub">{incomingCall ? 'Incoming audio call' : isInCall ? 'In call' : 'Calling...'}</div>
-                                {isInCall && <div className="wa-timer">{formatTimer(callTimer)}</div>}
-
-                                <div className="wa-controls">
-                                    {!isInCall && incomingCall && (
-                                        <>
-                                            <button onClick={acceptIncomingCall} className="wa-control bg-green-500 text-white" title="Accept">
-                                                ✓
-                                            </button>
-                                            <button onClick={declineIncomingCall} className="wa-control end" title="Decline">✕</button>
-                                        </>
-                                    )}
-
-                                    {!isInCall && !incomingCall && isCalling && (
-                                        <>
-                                            <button onClick={() => { endCallLocal(); }} className="wa-control end" title="Cancel Call">✕</button>
-                                        </>
-                                    )}
-
-                                    {isInCall && (
-                                        <>
-                                            <button onClick={toggleMute} className={`wa-control muted`} title="Mute/Unmute">{muted ? '🔇' : '🎙️'}</button>
-                                            <button onClick={() => { endCallLocal(); }} className="wa-control end" title="End Call">✕</button>
-                                        </>
-                                    )}
-                                </div>
-                                <audio ref={audioRef} style={{display:'none'}} />
-                            </div>
-                        </div>
-                    )}
                 </div>
             );
         }
@@ -2665,6 +2654,7 @@
                 const [currentCallId, setCurrentCallId] = useState(null);
                 const audioRef = useRef(null);
                 const [muted, setMuted] = useState(false);
+                const [callLogs, setCallLogs] = useState([]); // store call history and status
 
             // Restore session from localStorage on mount (before loading data)
             useEffect(() => {
@@ -3039,6 +3029,8 @@
                     const callId = `call-${Date.now()}`;
                     setCallTargetId(targetId);
                     setCurrentCallId(callId);
+                    // log outgoing call
+                    setCallLogs(prev => [{ id: callId, target: targetId, targetName: (allUsers.find(u=>u.id===targetId)||{}).name || targetId, direction: 'outgoing', status: 'ringing', createdAt: Date.now() }, ...prev]);
                     await sendSignal({ type: 'offer', offer: offer, from: currentUser.id, fromName: currentUser.name, target: targetId, callId });
                     setIsInCall(true);
                 } catch (e) {
@@ -3063,6 +3055,8 @@
 
                     setCallTargetId(from);
                     setCurrentCallId(callId);
+                    // log incoming call accepted
+                    setCallLogs(prev => [{ id: callId, target: from, targetName: (allUsers.find(u=>u.id===from)||{}).name || from, direction: 'incoming', status: 'connected', startedAt: Date.now() }, ...prev]);
                     await sendSignal({ type: 'answer', answer: answer, from: currentUser.id, fromName: currentUser.name, target: from, callId });
                     setIsInCall(true);
                     setIncomingCall(null);
@@ -3104,6 +3098,15 @@
                 }
                 setRemoteAudioUrl(null);
                 setCallTargetId(null);
+                // update call log with end time and duration
+                setCallLogs(prev => prev.map(c => {
+                    if (c.id === currentCallId) {
+                        const endedAt = Date.now();
+                        const started = c.startedAt || c.createdAt || Date.now();
+                        return { ...c, status: 'ended', endedAt, durationMs: Math.max(0, endedAt - started) };
+                    }
+                    return c;
+                }));
                 setCurrentCallId(null);
                 setMuted(false);
                 setIsInCall(false);
@@ -3899,25 +3902,25 @@
                                 onSendMessage={handleSendMessage}
                                 onCreateChat={handleCreateChat}
                                 onDeleteChat={handleDeleteChat}
+                                onStartCall={startCall}
                             />
                         )}
                         {activeView === 'calls' && (
                             <CallsView
                                 currentUser={currentUser}
                                 users={allUsers}
+                                callLogs={callLogs}
+                                onStartCall={startCall}
                                 incomingCall={incomingCall}
+                                onAcceptIncoming={acceptIncomingCall}
+                                onDeclineIncoming={declineIncomingCall}
+                                onEndCall={endCallLocal}
+                                toggleMute={toggleMute}
                                 isCalling={isCalling}
                                 isInCall={isInCall}
-                                callTargetId={callTargetId}
-                                startCall={startCall}
-                                acceptIncomingCall={acceptIncomingCall}
-                                declineIncomingCall={declineIncomingCall}
-                                endCallLocal={endCallLocal}
-                                toggleMute={toggleMute}
                                 muted={muted}
                                 audioRef={audioRef}
                                 remoteAudioUrl={remoteAudioUrl}
-                                remoteStreamRef={remoteStreamRef}
                             />
                         )}
                         
@@ -3969,6 +3972,10 @@
                         <button onClick={() => setActiveView('chat')} className={activeView === 'chat' ? 'active' : ''} title="Chat">
                             <Icons.MessageSquare size={20} />
                             <span>Chat</span>
+                        </button>
+                        <button onClick={() => setActiveView('calls')} className={activeView === 'calls' ? 'active' : ''} title="Calls">
+                            <Icons.Users size={20} />
+                            <span>Calls</span>
                         </button>
                         {currentUser && currentUser.role === 'Admin' && (
                             <button onClick={() => setActiveView('users')} className={activeView === 'users' ? 'active' : ''} title="Users">
